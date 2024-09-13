@@ -94,6 +94,10 @@ var intoTimescale = (timeInSeconds, timescale, round = true) => {
   let value = timeInSeconds * timescale;
   return round ? Math.round(value) : value;
 };
+var roundWithRemainder = (value) => {
+  let rounded = Math.round(value);
+  return [rounded, value - rounded];
+};
 var rotationMatrix = (rotationInDegrees) => {
   let theta = rotationInDegrees * (Math.PI / 180);
   let cosTheta = Math.cos(theta);
@@ -1531,6 +1535,7 @@ prepareTracks_fn = function() {
       compositionTimeOffsetTable: [],
       lastTimescaleUnits: null,
       lastSample: null,
+      fractionalCarryTimescaleUnit: 0,
       compactlyCodedChunkTable: []
     });
   }
@@ -1566,6 +1571,7 @@ prepareTracks_fn = function() {
       compositionTimeOffsetTable: [],
       lastTimescaleUnits: null,
       lastSample: null,
+      fractionalCarryTimescaleUnit: 0,
       compactlyCodedChunkTable: []
     });
   }
@@ -1623,8 +1629,10 @@ addSampleToTrack_fn = function(track, sample) {
   }
   const sampleCompositionTimeOffset = intoTimescale(sample.presentationTimestamp - sample.decodeTimestamp, track.timescale);
   if (track.lastTimescaleUnits !== null) {
-    let timescaleUnits = intoTimescale(sample.decodeTimestamp, track.timescale, false);
-    let delta = Math.round(timescaleUnits - track.lastTimescaleUnits);
+    const timescaleUnits = intoTimescale(sample.decodeTimestamp, track.timescale, false);
+    const adjustedUnits = timescaleUnits - track.lastTimescaleUnits + track.fractionalCarryTimescaleUnit;
+    const [delta, carryover] = roundWithRemainder(adjustedUnits);
+    track.fractionalCarryTimescaleUnit = carryover;
     track.lastTimescaleUnits += delta;
     track.lastSample.timescaleUnitsToNextSample = delta;
     if (__privateGet(this, _options).fastStart !== "fragmented") {
