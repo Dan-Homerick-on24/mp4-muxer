@@ -1,5 +1,5 @@
 import { Box, free, ftyp, mdat, mfra, moof, moov } from './box';
-import { deepClone, intoTimescale, last, TransformationMatrix } from './misc';
+import { deepClone, intoTimescale, last, roundWithRemainder, TransformationMatrix } from './misc';
 import { ArrayBufferTarget, FileSystemWritableFileStreamTarget, StreamTarget, Target } from './target';
 import {
 	Writer,
@@ -66,6 +66,7 @@ export interface Track {
 	compositionTimeOffsetTable: { sampleCount: number, sampleCompositionTimeOffset: number }[];
 	lastTimescaleUnits: number,
 	lastSample: Sample,
+	fractionalCarryTimescaleUnit: number,
 
 	finalizedChunks: Chunk[],
 	currentChunk: Chunk,
@@ -313,6 +314,7 @@ export class Muxer<T extends Target> {
 				compositionTimeOffsetTable: [],
 				lastTimescaleUnits: null,
 				lastSample: null,
+				fractionalCarryTimescaleUnit: 0,
 				compactlyCodedChunkTable: []
 			};
 		}
@@ -349,6 +351,7 @@ export class Muxer<T extends Target> {
 				compositionTimeOffsetTable: [],
 				lastTimescaleUnits: null,
 				lastSample: null,
+				fractionalCarryTimescaleUnit: 0,
 				compactlyCodedChunkTable: []
 			};
 		}
@@ -608,8 +611,19 @@ export class Muxer<T extends Target> {
 			intoTimescale(sample.presentationTimestamp - sample.decodeTimestamp, track.timescale);
 
 		if (track.lastTimescaleUnits !== null) {
-			let timescaleUnits = intoTimescale(sample.decodeTimestamp, track.timescale, false);
-			let delta = Math.round(timescaleUnits - track.lastTimescaleUnits);
+			// Calculate the delta from the previous sample in timescale units (aka ticks). Don't round yet.
+			const timescaleUnits = intoTimescale(sample.decodeTimestamp, track.timescale, false);
+
+			// Add any fractional tick from previous sample
+			const adjustedUnits = (timescaleUnits - track.lastTimescaleUnits) + track.fractionalCarryTimescaleUnit;
+
+			// Round to an integer number of ticks. Track the remainder
+			const [delta, carryover] = roundWithRemainder(adjustedUnits);
+
+			// Carry the fractional tick forward to the next sample. This prevents accumulating 
+			// rounding errors that would otherwise lead to audio/video drift in long mp4s.
+			track.fractionalCarryTimescaleUnit = carryover;
+
 			track.lastTimescaleUnits += delta;
 			track.lastSample.timescaleUnitsToNextSample = delta;
 

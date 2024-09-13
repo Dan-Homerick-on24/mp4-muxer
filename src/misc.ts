@@ -80,6 +80,11 @@ export const intoTimescale = (timeInSeconds: number, timescale: number, round = 
 	return round ? Math.round(value) : value;
 };
 
+export const roundWithRemainder = (value: number) => {
+	let rounded = Math.round(value);
+	return [rounded, value - rounded];
+}
+
 export type TransformationMatrix = [number, number, number, number, number, number, number, number, number];
 
 export const rotationMatrix = (rotationInDegrees: number): TransformationMatrix => {
