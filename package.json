@@ -1,6 +1,8 @@
 {
   "name": "@on24/mp4-muxer",
-  "private": true,
+  "publishConfig": {
+    "registry": "http://p-eng05.on24.com/repository/npm-on24/"
+  },
   "version": "5.1.2",
   "description": "MP4 multiplexer in pure TypeScript with support for WebCodecs API, video & audio.",
   "main": "./build/mp4-muxer.js",
